@@ -19,6 +19,10 @@
     display: none !important;
   }
 
+  .nav-user-menu.desktop {
+    display: none !important;
+  }
+
   .elle-nav-logo {
     height: 30px !important;
   }

@@ -8,7 +8,7 @@ export default function LibraryNavbar() {
 
   return (
     <div className="library-navbar-container">
-      <List dense>
+      <List dense sx={{ padding: '0px' }}>
         <ListItem disablePadding sx={{ marginBottom: '16px' }}>
           <Link
             to="/library/exercises"

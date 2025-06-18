@@ -1,4 +1,4 @@
-import { Box, Button } from '@mui/material';
+import { Box, Button, useMediaQuery } from '@mui/material';
 import './styles/Home.css';
 import './styles/Library.css';
 import { ElleOuterDivStyle } from '../const/StyleConstants';
@@ -18,6 +18,7 @@ import usePagination from '../hooks/library/usePagination';
 import Pagination from '../components/library/shared/Pagination';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '@emotion/react';
 
 export default function Exercise() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,6 +26,8 @@ export default function Exercise() {
   const itemsPerPage = 5;
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down("md"));
 
   const {
     currentPage,
@@ -47,8 +50,10 @@ export default function Exercise() {
       <Box className="adding-rounded-corners" sx={ElleOuterDivStyle}>
         <Box className="library-container">
           <h1 className="library-page-title">{t('exercises')}</h1>
-
           <div className="library-main-content">
+            {isSmallScreen && (
+              <SearchBar />
+            )}
             <div className="library-filters">
               <div className="library-navbar-section">
                 <LibraryNavbar />
@@ -64,19 +69,23 @@ export default function Exercise() {
 
 
             <div className="library-infoContainer">
-              <SearchBar />
+              {!isSmallScreen && (
+                <SearchBar />
+              )}
 
               <div className="library-buttons">
-                <Can requireAuth={true}>
-                  <Button
-                    onClick={() => setIsModalOpen(true)}
-                    sx={DefaultButtonStyleSmall}
-                    className="library-add-button"
-                  >
-                    <EditNoteIcon />
-                    {t('exercise_page_create_new_exercise')}
-                  </Button>
-                </Can>
+                <div>
+                  <Can requireAuth={true}>
+                    <Button
+                      onClick={() => setIsModalOpen(true)}
+                      sx={DefaultButtonStyleSmall}
+                      className="library-add-button"
+                    >
+                      <EditNoteIcon />
+                      {t('exercise_page_create_new_exercise')}
+                    </Button>
+                  </Can>
+                </div>
                 <SortButton />
               </div>
 
