@@ -95,4 +95,9 @@ public class ExerciseService {
       throw new RuntimeException("H5P faili lahtipakkimine ebaõnnestus", e);
     }
   }
+
+  //Search method
+  public List<Exercise> searchExercises(String query) {
+    return exerciseDao.searchExercises(query);
+  }
 }

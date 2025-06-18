@@ -39,4 +39,10 @@ public class StudyMaterialController {
   public List<Material> getAllStudyMaterials() {
     return studyMaterialService.getAllStudyMaterials();
   }
+
+  @GetMapping("/search")
+  public List<Material> searchStudyMaterials(@RequestParam String query) {
+    return studyMaterialService.searchMaterials(query);
+  }
+
 }

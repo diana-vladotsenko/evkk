@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useSearchParams  } from 'react-router-dom';
-import { Box, Button } from '@mui/material';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Box } from '@mui/material';
 import ContentCard from '../components/library/shared/ContentCard';
 import AddStudyMaterialButton from '../components/library/studymaterial/AddStudyMaterialButton';
 import AddStudyMaterial from '../components/library/studymaterial/AddStudyMaterial';
@@ -18,7 +18,6 @@ import './styles/Library.css';
 import { ElleOuterDivStyle } from '../const/StyleConstants';
 import { useTranslation } from 'react-i18next';
 
-
 export default function StudyMaterial() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,17 +25,16 @@ export default function StudyMaterial() {
   const openId = searchParams.get('open');
   const [modalOpen, setModalOpen] = useState(false);
   const [materials, setMaterials] = useState([]);
+  const [sortType, setSortType] = useState('newest');
   const materialsPerPage = 5;
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [popupOpen, setPopupOpen] = useState(false);
-
   const { t } = useTranslation();
 
   const handleCardClick = (material) => {
     setSelectedMaterial(material);
     setPopupOpen(true);
 
-    // Lisame URL-i ?open=<id> ilma lehte uuesti laadimata
     const newSearch = new URLSearchParams(location.search);
     newSearch.set('open', material.id);
     navigate(`${location.pathname}?${newSearch.toString()}`, { replace: true });
@@ -51,16 +49,20 @@ export default function StudyMaterial() {
     navigate(`${location.pathname}?${newSearch.toString()}`, { replace: true });
   };
 
-  useEffect(() => {
-    if (openId && materials.length > 0) {
-      const match = materials.find(m => m.id === parseInt(openId));
-      if (match) {
-        setSelectedMaterial(match);
-        setPopupOpen(true);
-      }
+  const applySort = (items, type) => {
+    const sorted = [...items];
+    switch (type) {
+      case 'az':
+        return sorted.sort((a, b) => a.title.localeCompare(b.title));
+      case 'za':
+        return sorted.sort((a, b) => b.title.localeCompare(a.title));
+      case 'oldest':
+        return sorted.sort((a, b) => a.id - b.id);
+      case 'newest':
+      default:
+        return sorted.sort((a, b) => b.id - a.id);
     }
-  }, [openId, materials]);
-
+  };
 
   const {
     currentPage,
@@ -71,20 +73,48 @@ export default function StudyMaterial() {
     setCurrentPage
   } = usePagination(materials, materialsPerPage);
 
+  const fetchAllMaterials = async () => {
+    const url = process.env.NODE_ENV === 'production'
+      ? '/api/study-material/all'
+      : 'http://localhost:9090/api/study-material/all';
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      setMaterials(applySort(data, sortType));
+    } catch (err) {
+      console.error('Error loading all materials:', err);
+    }
+  };
+
   useEffect(() => {
-    const fetchMaterials = async () => {
-      const url = process.env.NODE_ENV === 'production'
-        ? '/api/study-material/all'
-        : 'http://localhost:9090/api/study-material/all';
-      try {
-        const res = await fetch(url);
-        setMaterials(await res.json());
-      } catch (err) {
-        console.error('Viga õppematerjalide laadimisel:', err);
-      }
-    };
-    fetchMaterials();
+    fetchAllMaterials();
   }, []);
+
+  const handleSearch = async (query) => {
+    const trimmed = query.trim();
+
+    if (!trimmed) {
+      setSortType('newest');
+      await fetchAllMaterials();
+      setCurrentPage(1);
+      return;
+    }
+
+    const url = process.env.NODE_ENV === 'production'
+      ? `/api/study-material/search?query=${encodeURIComponent(trimmed)}`
+      : `http://localhost:9090/api/study-material/search?query=${encodeURIComponent(trimmed)}`;
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setSortType('newest'); // Reset sort
+      setMaterials(applySort(data, 'newest'));
+      setCurrentPage(1);
+    } catch (err) {
+      console.error('Search error:', err);
+    }
+  };
 
   return (
     <div>
@@ -92,7 +122,8 @@ export default function StudyMaterial() {
         isOpen={modalOpen}
         setIsOpen={() => setModalOpen(false)}
         onSubmitSuccess={newMaterial => {
-          setMaterials(prev => [newMaterial, ...prev]);
+          const updated = applySort([newMaterial, ...materials], sortType);
+          setMaterials(updated);
           setCurrentPage(1);
         }}
       />
@@ -104,20 +135,40 @@ export default function StudyMaterial() {
       <Box className="adding-rounded-corners" sx={ElleOuterDivStyle}>
         <Box className="library-container">
           <h1 style={{ textAlign: 'center' }}>{t('study_materials')}</h1>
-          <div className="library-search-container"><SearchBar /></div>
+          <div className="library-search-container">
+            <SearchBar onSearch={handleSearch} />
+          </div>
           <div className="library-menu"><LibraryNavbar /></div>
           <div className="library-main-content">
-            <div className="library-filters"><CategoryFilters /><br /><LanguageFilters /><br /><TypeFilters/></div>
+            <div className="library-filters">
+              <CategoryFilters /><br />
+              <LanguageFilters /><br />
+              <TypeFilters />
+            </div>
             <div className="library-infoContainer">
               <div className="library-buttons">
                 <AddStudyMaterialButton onClick={() => setModalOpen(true)} />
-                <SortButton />
+                <SortButton
+                  selectedSort={sortType}
+                  onSortChange={(type) => {
+                    setSortType(type);
+                    setMaterials(applySort(materials, type));
+                  }}
+                />
               </div>
-              <div className="library-results-count"><Box>{t('query_found') + ':'} {materials.length}</Box></div>
+              <div className="library-results-count">
+                <Box>{t('query_found') + ':'} {materials.length}</Box>
+              </div>
               <div className="library-results">
-                {currentMaterials.map(m => (
-                  <ContentCard key={m.id} item={m} type="material" onClick={() => handleCardClick(m)} />
-                ))}
+                {currentMaterials.length > 0 ? (
+                  currentMaterials.map(m => (
+                    <ContentCard key={m.id} item={m} type="material" onClick={() => handleCardClick(m)} />
+                  ))
+                ) : (
+                  <Box sx={{ padding: 2, textAlign: 'center', color: 'gray' }}>
+                    {t('cant_find_data')}
+                  </Box>
+                )}
               </div>
               <Pagination
                 currentPage={currentPage}

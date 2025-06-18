@@ -195,4 +195,8 @@ public class StudyMaterialService {
   public List<Material> getAllStudyMaterials() {
     return materialDao.findAllMaterials();
   }
+
+  public List<Material> searchMaterials(String query) {
+    return materialDao.searchMaterials(query);
+  }
 }

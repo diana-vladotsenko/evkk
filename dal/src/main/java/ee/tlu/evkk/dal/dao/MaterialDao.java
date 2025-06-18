@@ -14,4 +14,6 @@ public interface MaterialDao {
   void insertMaterialCategories(Material material);
 
   List<Material> findAllMaterials();
+  List<Material> searchMaterials(@Param("query") String query);
+
 }

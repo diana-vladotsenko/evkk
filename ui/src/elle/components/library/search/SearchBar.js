@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Box, TextField, Button } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import { useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next';
 
 export default function SearchBar({ onSearch }) {
   const [inputValue, setInputValue] = useState('');
@@ -9,13 +9,11 @@ export default function SearchBar({ onSearch }) {
 
   const handleSearch = () => {
     const trimmed = inputValue.trim();
-    if (!trimmed) return;
 
     if (typeof onSearch === 'function') {
-      onSearch(trimmed);
+      onSearch(trimmed);  //isegi kui tühi on kutsub
+      setInputValue('');
     }
-
-    setInputValue('');
   };
 
   const handleKeyPress = (e) => {

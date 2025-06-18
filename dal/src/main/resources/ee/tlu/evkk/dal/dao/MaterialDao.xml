@@ -107,4 +107,21 @@
     ORDER BY m.id ASC
   </select>
 
+  <select id="searchMaterials" resultMap="MaterialResultMap">
+    SELECT
+    <include refid="materialAssociationColumns"/>
+    FROM core.material m
+    <include refid="materialAssociations"/>
+    WHERE
+    LOWER(m.title) LIKE LOWER(CONCAT('%', #{query}, '%'))
+    OR LOWER(m.description) LIKE LOWER(CONCAT('%', #{query}, '%'))
+    OR EXISTS (
+    SELECT 1
+    FROM core.material_category mc
+    JOIN core.category c ON mc.category_id = c.id
+    WHERE mc.material_id = m.id
+    AND LOWER(c.name) LIKE LOWER(CONCAT('%', #{query}, '%'))
+    )
+    ORDER BY m.id ASC
+  </select>
 </mapper>

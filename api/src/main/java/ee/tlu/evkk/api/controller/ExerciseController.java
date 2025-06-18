@@ -25,7 +25,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import javax.servlet.http.HttpServletRequest;
 
-
 @RestController
 @RequestMapping("/exercises")
 @RequiredArgsConstructor
@@ -44,71 +43,11 @@ public class ExerciseController {
     return exerciseService.getExerciseById(id);
   }
 
-
-//  @GetMapping("/file/{externalId}/{filename}")
-//  public ResponseEntity<Resource> serveExerciseFile(@PathVariable String externalId, @PathVariable String filename) {
-//    try {
-//      if (!Files.exists(filePath)) {
-//        return ResponseEntity.notFound().build();
-//      }
-//      Path filePath = Paths.get("uploads/exercises/" + externalId).resolve(filename).normalize();
-//      Resource resource = new UrlResource(filePath.toUri());
-//
-//      if (resource.exists() || resource.isReadable()) {
-//        return ResponseEntity.ok()
-//          .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
-//          .body(resource);
-//      } else {
-//        return ResponseEntity.notFound().build();
-//      }
-//    } catch (Exception e) {
-//      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-//    }
-//  }
-
-//  @GetMapping("/uploads/exercises/{externalId}/{filename}")
-//  public ResponseEntity<Resource> serveContentFilex(
-//    @PathVariable String externalId,
-//    @PathVariable String filename) {
-//
-//    try {
-//      Path filePath = Paths.get("uploads/exercises/" + externalId + "/h5p.json").normalize();
-//      Resource resource = new UrlResource(filePath.toUri());
-//
-//      if (resource.exists() || resource.isReadable()) {
-//        return ResponseEntity.ok()
-//          .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-//          .body(resource);
-//      } else {
-//        return ResponseEntity.notFound().build();
-//      }
-//    } catch (Exception e) {
-//      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-//    }
-//  }
-//
-//
-//  @GetMapping("/uploads/exercises/{externalId}/content/{filename}")
-//  public ResponseEntity<Resource> serveContentFile(
-//    @PathVariable String externalId,
-//    @PathVariable String filename) {
-//
-//    try {
-//      Path filePath = Paths.get("uploads/exercises/" + externalId + "/content/content.json").normalize();
-//      Resource resource = new UrlResource(filePath.toUri());
-//
-//      if (resource.exists() || resource.isReadable()) {
-//        return ResponseEntity.ok()
-//          .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-//          .body(resource);
-//      } else {
-//        return ResponseEntity.notFound().build();
-//      }
-//    } catch (Exception e) {
-//      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-//    }
-//  }
-
+  // ✅ NEW: Search endpoint
+  @GetMapping("/search")
+  public List<Exercise> searchExercises(@RequestParam String query) {
+    return exerciseService.searchExercises(query);
+  }
 
   @GetMapping("/uploads/exercises/{externalId}/**")
   public ResponseEntity<Resource> serveFileAlternativePath(
@@ -116,33 +55,21 @@ public class ExerciseController {
     HttpServletRequest request) {
 
     try {
-      // Võtame kogu URL-rea (näiteks /uploads/exercises/1234/somefile.js)
       String requestURL = request.getRequestURI();
-
-      // Leiame tee osa pärast externalId-d (nt "somefile.js")
       String basePath = "/uploads/exercises/" + externalId + "/";
       String filepath = requestURL.substring(requestURL.indexOf(basePath) + basePath.length());
-
-      // Koostame füüsilise failitee
       Path filePath = Paths.get("uploads/exercises/" + externalId + "/" + filepath).normalize();
       Resource resource = new UrlResource(filePath.toUri());
 
-      // Kontrollime, kas fail eksisteerib ja on loetav
       if (resource.exists() || resource.isReadable()) {
-
-        // Proovime tuvastada MIME tüübi (sisu tüüp, nt text/html, image/jpeg, application/javascript jne)
         String contentType = Files.probeContentType(filePath);
 
-        // Mõnel süsteemil ei tunta .js faile ära — määrame selle käsitsi
         if (filePath.toString().endsWith(".js")) {
           contentType = "application/javascript";
-          // Kui MIME tüüpi ei suudetud tuvastada, määrame vaikimisi
         } else if (contentType == null) {
           contentType = "application/octet-stream";
         }
 
-        // Tagastame faili koos sobiva Content-Type ja Content-Disposition päisega
-        // See võimaldab brauseril näiteks .js faili skriptina kasutada
         return ResponseEntity.ok()
           .header(HttpHeaders.CONTENT_TYPE, contentType)
           .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
@@ -170,7 +97,6 @@ public class ExerciseController {
   public ResponseEntity<?> validateH5PLink(@RequestBody Map<String, String> payload) {
     String link = payload.get("link");
 
-
     if (link == null || link.isBlank()) {
       return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "ERROR_LINK_IS_MISSING"));
     }
@@ -182,13 +108,11 @@ public class ExerciseController {
       }
 
       String[] parts = parsedUrl.getPath().split("/");
-
       if (parts.length < 3 || !parts[1].equals("node")) {
         return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "ERROR_INVALID_PATH_FORMAT"));
       }
 
       String externalId = parts[2];
-
       if (exerciseService.existsByExternalId(externalId)) {
         return ResponseEntity.ok(Map.of("status", "EXERCISE_ALREADY_EXISTS", "external_id", externalId));
       }
@@ -200,14 +124,10 @@ public class ExerciseController {
     }
   }
 
-
   @PostMapping("/upload")
   public ResponseEntity<?> downloadAndExtractH5P(@RequestParam("externalId") String externalId) {
-
     try {
       String remoteUrl = "https://sisuloome.e-koolikott.ee/sites/default/files/h5p/exports/interactive-content-" + externalId + ".h5p";
-       Path targetPath = Paths.get(System.getProperty("user.dir") + "/uploads/exercises", externalId + ".h5p");
-
       Path baseDir = Paths.get("uploads/exercises/", externalId);
       Files.createDirectories(baseDir);
       Path h5pFilePath = baseDir.resolve(externalId + ".h5p");
