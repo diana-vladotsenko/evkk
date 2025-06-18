@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams  } from 'react-router-dom';
-import { Box, Button } from '@mui/material';
+import { Box, Button, useMediaQuery } from '@mui/material';
 import ContentCard from '../components/library/shared/ContentCard';
 import AddStudyMaterialButton from '../components/library/studymaterial/AddStudyMaterialButton';
 import AddStudyMaterial from '../components/library/studymaterial/AddStudyMaterial';
@@ -18,6 +18,7 @@ import './styles/Library.css';
 import { ElleOuterDivStyle } from '../const/StyleConstants';
 import { useTranslation } from 'react-i18next';
 import Can from "../components/security/Can";
+import { useTheme } from '@emotion/react';
 
 
 export default function StudyMaterial() {
@@ -32,6 +33,9 @@ export default function StudyMaterial() {
   const [popupOpen, setPopupOpen] = useState(false);
 
   const { t } = useTranslation();
+
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down("md"));
 
   const handleCardClick = (material) => {
     setSelectedMaterial(material);
@@ -106,6 +110,9 @@ export default function StudyMaterial() {
         <Box className="library-container">
           <h1 className="library-page-title">{t('study_materials')}</h1>
           <div className="library-main-content">
+            {isSmallScreen && (
+              <SearchBar />
+            )}
 
             <div className="library-filters">
               <div className="library-navbar-section">
@@ -121,7 +128,9 @@ export default function StudyMaterial() {
             </div>
 
             <div className="library-infoContainer">
-              <SearchBar />
+              {!isSmallScreen && (
+                <SearchBar />
+              )}
               <div className="library-header-actions">
                 <div>
                   <Can requireAuth={true}>
