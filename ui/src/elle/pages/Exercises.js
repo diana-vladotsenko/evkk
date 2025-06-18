@@ -37,15 +37,6 @@ export default function Exercise() {
     }
   };
 
-  const {
-    currentPage,
-    totalPages,
-    currentItems: currentExercises,
-    goToPrev: prev,
-    goToNext: next,
-    setCurrentPage
-  } = usePagination(exercises, itemsPerPage);
-
   const handleSearch = (query) => {
     const trimmed = query.trim();
 
@@ -69,6 +60,15 @@ export default function Exercise() {
       });
   };
 
+  const {
+    currentPage,
+    totalPages,
+    currentItems: currentExercises,
+    goToPrev: prev,
+    goToNext: next,
+    setCurrentPage
+  } = usePagination(exercises, itemsPerPage);
+
   useEffect(() => {
     fetch("http://localhost:9090/api/exercises")
       .then(res => res.json())
@@ -80,22 +80,27 @@ export default function Exercise() {
       <ExerciseModal isOpen={isModalOpen} setIsOpen={setIsModalOpen} />
       <Box className="adding-rounded-corners" sx={ElleOuterDivStyle}>
         <Box className="library-container">
-          <h1 style={{ textAlign: 'center' }}>{t('exercises')}</h1>
-
-          <div className="library-search-container">
-            <SearchBar onSearch={handleSearch} />
-          </div>
-
-          <div className="library-menu"><LibraryNavbar /></div>
+          <h1 className="library-page-title">{t('exercises')}</h1>
 
           <div className="library-main-content">
             <div className="library-filters">
-              <CategoryFilters /><br />
-              <LanguageFilters /><br />
-              <TypeFilters />
+              <div className="library-navbar-section">
+                <LibraryNavbar />
+              </div>
+              <div className="library-filters-section">
+                <CategoryFilters />
+                <br />
+                <LanguageFilters />
+                <br />
+                <TypeFilters />
+              </div>
             </div>
 
             <div className="library-infoContainer">
+              <div className="library-search-container">
+                <SearchBar onSearch={handleSearch} />
+              </div>
+
               <div className="library-buttons">
                 <Can requireAuth={true}>
                   <Button
@@ -115,9 +120,11 @@ export default function Exercise() {
                   }}
                 />
               </div>
+
               <div className="library-results-count">
                 <Box>{t('query_found')}: {exercises.length}</Box>
               </div>
+
               <div className="library-results">
                 {currentExercises.length > 0 ? (
                   currentExercises.map(item => (
@@ -131,9 +138,15 @@ export default function Exercise() {
                   </Box>
                 )}
               </div>
-              <Pagination currentPage={currentPage} totalPages={totalPages} onPrev={prev} onNext={next} />
             </div>
           </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPrev={prev}
+            onNext={next}
+          />
         </Box>
       </Box>
     </div>

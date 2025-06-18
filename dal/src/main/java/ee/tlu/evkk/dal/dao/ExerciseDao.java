@@ -21,6 +21,7 @@ public interface ExerciseDao {
 
   void insertExerciseCategories(Exercise exercise);
 
-  //otsing
+  void insertExerciseTargetGroups(Exercise exercise);
+
   List<Exercise> searchExercises(@Param("query") String query);
 }

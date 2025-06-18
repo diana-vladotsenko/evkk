@@ -5,25 +5,23 @@ import ee.tlu.evkk.dal.dto.Exercise;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.net.URL;
-import java.nio.file.*;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.io.IOException;
-import java.util.Map;
-import java.util.HashMap;
-import java.io.InputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-import java.util.List;
 import org.springframework.core.io.Resource;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+
 import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.file.*;
+import java.sql.Timestamp;
+import java.util.List;
+import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @RestController
 @RequestMapping("/exercises")
@@ -43,7 +41,6 @@ public class ExerciseController {
     return exerciseService.getExerciseById(id);
   }
 
-  // ✅ NEW: Search endpoint
   @GetMapping("/search")
   public List<Exercise> searchExercises(@RequestParam String query) {
     return exerciseService.searchExercises(query);
@@ -51,9 +48,8 @@ public class ExerciseController {
 
   @GetMapping("/uploads/exercises/{externalId}/**")
   public ResponseEntity<Resource> serveFileAlternativePath(
-    @PathVariable String externalId,
-    HttpServletRequest request) {
-
+      @PathVariable String externalId,
+      HttpServletRequest request) {
     try {
       String requestURL = request.getRequestURI();
       String basePath = "/uploads/exercises/" + externalId + "/";
@@ -71,9 +67,9 @@ public class ExerciseController {
         }
 
         return ResponseEntity.ok()
-          .header(HttpHeaders.CONTENT_TYPE, contentType)
-          .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-          .body(resource);
+            .header(HttpHeaders.CONTENT_TYPE, contentType)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+            .body(resource);
       } else {
         return ResponseEntity.notFound().build();
       }
@@ -98,30 +94,76 @@ public class ExerciseController {
     String link = payload.get("link");
 
     if (link == null || link.isBlank()) {
-      return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "ERROR_LINK_IS_MISSING"));
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "error", "message", "ERROR_LINK_IS_MISSING"));
     }
+
+    URL parsedUrl;
 
     try {
-      URL parsedUrl = new URL(link);
-      if (!parsedUrl.getHost().equals("sisuloome.e-koolikott.ee")) {
-        return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "ERROR_ONLY_KOOLIKOTT_LINK_IS_ALLOWED"));
-      }
-
-      String[] parts = parsedUrl.getPath().split("/");
-      if (parts.length < 3 || !parts[1].equals("node")) {
-        return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "ERROR_INVALID_PATH_FORMAT"));
-      }
-
-      String externalId = parts[2];
-      if (exerciseService.existsByExternalId(externalId)) {
-        return ResponseEntity.ok(Map.of("status", "EXERCISE_ALREADY_EXISTS", "external_id", externalId));
-      }
-
-      return ResponseEntity.ok(Map.of("status", "ok", "external_id", externalId));
-
-    } catch (Exception e) {
-      return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+      parsedUrl = new URL(link);
+    } catch (MalformedURLException e) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "error", "message", "ERROR_INVALID_URL"));
     }
+
+    if (!"sisuloome.e-koolikott.ee".equals(parsedUrl.getHost())) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "error", "message", "ERROR_ONLY_KOOLIKOTT_LINK_IS_ALLOWED"));
+    }
+
+    String[] parts = parsedUrl.getPath().split("/");
+    if (parts.length < 3 || !"node".equals(parts[1])) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "error", "message", "ERROR_INVALID_PATH_FORMAT"));
+    }
+
+    String externalId = parts[2];
+
+    try {
+      int id = Integer.parseInt(externalId);
+      if (id <= 0) {
+        return ResponseEntity.badRequest()
+            .body(Map.of("status", "error", "message", "INVALID_NODE_ID"));
+      }
+    } catch (NumberFormatException e) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "error", "message", "INVALID_NODE_ID_FORMAT"));
+    }
+
+    if (exerciseService.existsByExternalId(externalId)) {
+      return ResponseEntity.ok(Map.of("status", "EXERCISE_ALREADY_EXISTS", "external_id", externalId));
+    }
+
+    String exportUrl = "https://sisuloome.e-koolikott.ee/sites/default/files/h5p/exports/interactive-content-" + externalId + ".h5p";
+
+    try {
+      HttpURLConnection head = (HttpURLConnection) new URL(exportUrl).openConnection();
+      head.setRequestMethod("HEAD");
+      head.setConnectTimeout(3000);
+      head.setReadTimeout(3000);
+      if (head.getResponseCode() != HttpURLConnection.HTTP_OK) {
+        return ResponseEntity.badRequest()
+            .body(Map.of("status", "error", "message", "ERROR_INVALID_H5P_LINK"));
+      }
+    } catch (IOException e) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body(Map.of("status", "error", "message", "ERROR_CHECKING_H5P_LINK"));
+    }
+
+    try (InputStream in = new URL(exportUrl).openStream();
+         ZipInputStream zip = new ZipInputStream(in)) {
+      ZipEntry entry = zip.getNextEntry();
+      if (entry == null) {
+        return ResponseEntity.badRequest()
+            .body(Map.of("status", "error", "message", "ERROR_INVALID_H5P_LINK_EMPTY"));
+      }
+    } catch (IOException e) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("status", "error", "message", "ERROR_INVALID_H5P_LINK_CORRUPT"));
+    }
+
+    return ResponseEntity.ok(Map.of("status", "ok", "external_id", externalId));
   }
 
   @PostMapping("/upload")
@@ -159,9 +201,9 @@ public class ExerciseController {
       }
 
       return ResponseEntity.ok(Map.of("status", "ok", "external_id", externalId));
-
     } catch (IOException e) {
-      return ResponseEntity.status(500).body(Map.of("status", "error", "message", "FAIL_TO_DOWNLOAD_OR_UNZIP", "details", e.getMessage()));
+      return ResponseEntity.status(500)
+          .body(Map.of("status", "error", "message", "FAIL_TO_DOWNLOAD_OR_UNZIP", "details", e.getMessage()));
     }
   }
 }

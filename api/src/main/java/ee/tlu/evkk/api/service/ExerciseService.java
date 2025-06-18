@@ -29,20 +29,22 @@ public class ExerciseService {
     return exerciseDao.findById(id);
   }
 
-  public void saveExerciseIfNotExists(Exercise exercise) {
-    Exercise existing = exerciseDao.findByExternalId(exercise.getExternalId());
-
-    if (existing != null && existing.getId() != null) {
+  public void saveExercise(Exercise exercise) {
+    if (existsByExternalId(exercise.getExternalId())) {
       throw new RuntimeException("ERROR_EXERCISE_ALREADY_EXISTS");
     }
 
     exercise.setCreatedAt(Timestamp.valueOf(LocalDateTime.now()));
+    exercise.setFilePath("uploads/exercises/" + exercise.getExternalId() + "/" + exercise.getExternalId() + ".h5p");
+    exercise.setViews(0);
+    exercise.setLikes(0);
     insertExercise(exercise);
   }
 
   public void insertExercise(Exercise exercise) {
     exerciseDao.insertExercise(exercise);
     exerciseDao.insertExerciseCategories(exercise);
+    exerciseDao.insertExerciseTargetGroups(exercise);
   }
 
   public boolean existsByExternalId(String externalId) {
@@ -100,4 +102,5 @@ public class ExerciseService {
   public List<Exercise> searchExercises(String query) {
     return exerciseDao.searchExercises(query);
   }
+
 }

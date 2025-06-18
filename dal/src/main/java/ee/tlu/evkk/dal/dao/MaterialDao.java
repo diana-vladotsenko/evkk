@@ -12,7 +12,10 @@ import java.util.List;
 public interface MaterialDao {
   void insertMaterial(Material material);
   void insertMaterialCategories(Material material);
+  void insertMaterialTargetGroups(Material material);
 
+  Material findMaterialById(@Param("id") Long id);
+  
   List<Material> findAllMaterials();
   List<Material> searchMaterials(@Param("query") String query);
 

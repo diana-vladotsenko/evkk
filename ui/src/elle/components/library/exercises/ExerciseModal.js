@@ -13,11 +13,15 @@ import {
   Slider,
   Typography,
   Link,
+  FormGroup,
+  FormControlLabel
 } from '@mui/material';
 
 import {
   validateLink,
   submitExercise,
+  deleteByExternalId,
+  uploadByExternalId
 } from '../../../util/ExerciseUtils';
 
 import '../../../pages/styles/Library.css';
@@ -28,7 +32,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { DefaultButtonStyle, DefaultSliderStyle } from '../../../const/StyleConstants';
 import { errorEmitter, successEmitter } from '../../../../App';
 import { useFetch } from '../../../hooks/useFetch';
-import H5PPlayer from './H5PPlayer.js';
+import { H5PPlayer } from './H5PPlayer.js';
 
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
@@ -41,7 +45,7 @@ const MenuProps = {
   },
 };
 
-export default function ExerciseModal({ isOpen, setIsOpen }) {
+export default function ExerciseModal({ isOpen, setIsOpen, onSuccess }) {
   const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -55,9 +59,10 @@ export default function ExerciseModal({ isOpen, setIsOpen }) {
   const [link, setLink] = useState('');
   const [validationStatus, setValidationStatus] = useState(null);
   const [externalId, setExternalId] = useState(null);
+  const [isUploaded, setIsUploaded] = useState(false);
+  const [selectedTargetGroupIds, setSelectedTargetGroupIds] = useState([]);
+  const [targetGroups, setTargetGroups] = useState([]);
   const { fetchData } = useFetch();
-
-  //const isStep1Valid = title && description && languageLevels.length > 0 && selectedCategoryIds.length > 0;
 
   const resetForm = useCallback(() => {
     setTitle('');
@@ -69,7 +74,10 @@ export default function ExerciseModal({ isOpen, setIsOpen }) {
     setValidationStatus(null);
     setExternalId(null);
     setStep(1);
+    setIsUploaded(false);
   }, [durationOptions]);
+
+  const isStep1Valid = title && description && languageLevels.length > 0 && selectedCategoryIds.length > 0  && selectedCategoryIds.length > 0;
 
   useEffect(() => {
     if (!isOpen) {
@@ -78,19 +86,25 @@ export default function ExerciseModal({ isOpen, setIsOpen }) {
   }, [resetForm, isOpen]);
 
   useEffect(() => {
-    fetch("http://localhost:9090/api/categories")
+    fetch("/api/categories")
       .then(res => res.json())
       .then(json => setCategories(json));
   }, []);
 
   useEffect(() => {
-    fetch("http://localhost:9090/api/language-levels")
+    fetch("/api/language-levels")
       .then(res => res.json())
       .then(json => setlanguageLevels(json));
   }, []);
 
   useEffect(() => {
-    fetch("http://localhost:9090/api/durations")
+    fetch("/api/target-groups")
+      .then(res => res.json())
+      .then(json => setTargetGroups(json));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/durations")
       .then(res => res.json())
       .then(json => {
         setDurationOptions(json);
@@ -98,9 +112,29 @@ export default function ExerciseModal({ isOpen, setIsOpen }) {
       });
   }, []);
 
+  useEffect(() => {
+    if (!isOpen && externalId && isUploaded) {
+      deleteByExternalId(externalId, fetchData)
+        .then(() => {
+          resetForm();
+        })
+        .catch(() => {
+          errorEmitter.emit('error_generic_server_error');
+        });
+    }
+  }, [isOpen]);
+
   const handleChangeLevel = (event) => {
     const { target: { value } } = event;
     setSelectedLanguageLevelId(value);
+  };
+
+  const handleTargetGroupChange = (event, targetGroupId) => {
+    setSelectedTargetGroupIds((prev) =>
+      event.target.checked
+        ? [...prev, targetGroupId]
+        : prev.filter((id) => id !== targetGroupId)
+    );
   };
 
   const handleChangeCategory = (event) => {
@@ -113,24 +147,34 @@ export default function ExerciseModal({ isOpen, setIsOpen }) {
   };
 
   const handleValidateLink = async () => {
-    const result = await validateLink(link, fetchData);
+    try {
+      const result = await validateLink(link, fetchData);
 
-    if (result.status === 'EXERCISE_ALREADY_EXISTS') {
-      setValidationStatus('error');
-      setExternalId(null);
-      errorEmitter.emit('error_link_already_exists');
-    } else if (result.status === 'ok') {
-       setValidationStatus('success');
-      setExternalId(result.externalId);
-      successEmitter.emit('success_generic');
-    } else {
+      if (result.status === 'EXERCISE_ALREADY_EXISTS') {
+        setValidationStatus('error');
+        setExternalId(null);
+        errorEmitter.emit('error_link_already_exists');
+      } else if (result.status === 'success') {
+        setValidationStatus('success');
+        setExternalId(result.externalId);
+        successEmitter.emit('success_generic');
+      } else {
+        setValidationStatus('error');
+        setExternalId(null);
+        errorEmitter.emit('error_invalid_link');
+      }
+    } catch (e) {
       setValidationStatus('error');
       setExternalId(null);
       errorEmitter.emit('error_generic_server_error');
     }
-  };
+  }
 
   const handleSubmitExercise = async () => {
+    if (validationStatus !== 'success' || !externalId) {
+      errorEmitter.emit('error_generic_server_error');
+      return;
+    }
     try {
       await submitExercise({
         title,
@@ -141,12 +185,22 @@ export default function ExerciseModal({ isOpen, setIsOpen }) {
         categories,
         durationOptions,
         externalId,
+        selectedTargetGroupIds
       }, fetchData);
       successEmitter.emit('success_generic');
       setIsOpen(false);
+      onSuccess?.();
     } catch {
       errorEmitter.emit('error_generic_server_error');
     }
+  };
+
+  const handleClose = async () => {
+    if (externalId && isUploaded) {
+      await deleteByExternalId(externalId, fetchData);
+    }
+    resetForm();
+    setIsOpen(false);
   };
 
 
@@ -155,6 +209,7 @@ export default function ExerciseModal({ isOpen, setIsOpen }) {
       <ModalBase
         isOpen={isOpen}
         setIsOpen={setIsOpen}
+        onClose={handleClose}
         requireConfirmation={true}
         title={t('exercise_creation')}
       >
@@ -221,6 +276,23 @@ export default function ExerciseModal({ isOpen, setIsOpen }) {
                     ))}
                   </Select>
                 </FormControl>
+              </Box>
+
+              <Box display="flex" style={{ marginTop: 40 }}>
+                {targetGroups.map((targetGroup) => (
+                  <FormGroup row>
+                    <FormControlLabel
+                      value={targetGroup.id}
+                      control={
+                        <Checkbox
+                          checked={selectedTargetGroupIds.includes(targetGroup.id)}
+                          onChange={(e) => handleTargetGroupChange(e, targetGroup.id)}
+                        />
+                      }
+                      label={targetGroup.name}
+                    />
+                  </FormGroup>
+                ))}
               </Box>
 
               <Box display="flex">
@@ -317,7 +389,18 @@ export default function ExerciseModal({ isOpen, setIsOpen }) {
                     sx={DefaultButtonStyle}
                     size="medium"
                     variant="contained"
-                    onClick={() => setStep(3)}
+                    onClick={async () => {
+                      if (!isUploaded) {
+                        try {
+                          await uploadByExternalId(externalId, fetchData);
+                          setIsUploaded(true);
+                        } catch {
+                          errorEmitter.emit('error_generic_server_error');
+                          return;
+                        }
+                      }
+                      setStep(3);
+                    }}
                     disabled={validationStatus !== 'success' || !externalId}
                   >
                     {t('exercise_creation_show_preview')}

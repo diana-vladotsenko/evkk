@@ -11,9 +11,10 @@ export default function SearchBar({ onSearch }) {
     const trimmed = inputValue.trim();
 
     if (typeof onSearch === 'function') {
-      onSearch(trimmed);  //isegi kui tühi on kutsub
-      setInputValue('');
+      onSearch(trimmed); // Calls even if empty
     }
+
+    setInputValue(''); // Always clear the input after search
   };
 
   const handleKeyPress = (e) => {

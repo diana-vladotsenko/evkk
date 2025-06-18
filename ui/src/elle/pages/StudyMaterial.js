@@ -17,6 +17,7 @@ import './styles/Home.css';
 import './styles/Library.css';
 import { ElleOuterDivStyle } from '../const/StyleConstants';
 import { useTranslation } from 'react-i18next';
+import Can from "../components/security/Can";
 
 export default function StudyMaterial() {
   const navigate = useNavigate();
@@ -52,15 +53,11 @@ export default function StudyMaterial() {
   const applySort = (items, type) => {
     const sorted = [...items];
     switch (type) {
-      case 'az':
-        return sorted.sort((a, b) => a.title.localeCompare(b.title));
-      case 'za':
-        return sorted.sort((a, b) => b.title.localeCompare(a.title));
-      case 'oldest':
-        return sorted.sort((a, b) => a.id - b.id);
+      case 'az': return sorted.sort((a, b) => a.title.localeCompare(b.title));
+      case 'za': return sorted.sort((a, b) => b.title.localeCompare(a.title));
+      case 'oldest': return sorted.sort((a, b) => a.id - b.id);
       case 'newest':
-      default:
-        return sorted.sort((a, b) => b.id - a.id);
+      default: return sorted.sort((a, b) => b.id - a.id);
     }
   };
 
@@ -77,6 +74,7 @@ export default function StudyMaterial() {
     const url = process.env.NODE_ENV === 'production'
       ? '/api/study-material/all'
       : 'http://localhost:9090/api/study-material/all';
+
     try {
       const res = await fetch(url);
       const data = await res.json();
@@ -108,7 +106,7 @@ export default function StudyMaterial() {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setSortType('newest'); // Reset sort
+      setSortType('newest');
       setMaterials(applySort(data, 'newest'));
       setCurrentPage(1);
     } catch (err) {
@@ -121,9 +119,17 @@ export default function StudyMaterial() {
       <AddStudyMaterial
         isOpen={modalOpen}
         setIsOpen={() => setModalOpen(false)}
-        onSubmitSuccess={newMaterial => {
-          const updated = applySort([newMaterial, ...materials], sortType);
-          setMaterials(updated);
+        onSubmitSuccess={async (newMaterial) => {
+          try {
+            const url = process.env.NODE_ENV === 'production'
+              ? `/api/study-material/${newMaterial.id}`
+              : `http://localhost:9090/api/study-material/${newMaterial.id}`;
+            const res = await fetch(url);
+            const fullMaterial = await res.json();
+            setMaterials(prev => applySort([fullMaterial, ...prev], sortType));
+          } catch {
+            setMaterials(prev => applySort([newMaterial, ...prev], sortType));
+          }
           setCurrentPage(1);
         }}
       />
@@ -134,20 +140,28 @@ export default function StudyMaterial() {
       />
       <Box className="adding-rounded-corners" sx={ElleOuterDivStyle}>
         <Box className="library-container">
-          <h1 style={{ textAlign: 'center' }}>{t('study_materials')}</h1>
-          <div className="library-search-container">
-            <SearchBar onSearch={handleSearch} />
-          </div>
-          <div className="library-menu"><LibraryNavbar /></div>
+          <h1 className="library-page-title">{t('study_materials')}</h1>
           <div className="library-main-content">
+
             <div className="library-filters">
-              <CategoryFilters /><br />
-              <LanguageFilters /><br />
-              <TypeFilters />
+              <div className="library-navbar-section">
+                <LibraryNavbar />
+              </div>
+              <div className="library-filters-section">
+                <CategoryFilters />
+                <br />
+                <LanguageFilters />
+                <br />
+                <TypeFilters />
+              </div>
             </div>
+
             <div className="library-infoContainer">
-              <div className="library-buttons">
-                <AddStudyMaterialButton onClick={() => setModalOpen(true)} />
+              <SearchBar onSearch={handleSearch} />
+              <div className="library-header-actions">
+                <Can requireAuth={true}>
+                  <AddStudyMaterialButton onClick={() => setModalOpen(true)} />
+                </Can>
                 <SortButton
                   selectedSort={sortType}
                   onSortChange={(type) => {
@@ -156,13 +170,20 @@ export default function StudyMaterial() {
                   }}
                 />
               </div>
+
               <div className="library-results-count">
                 <Box>{t('query_found') + ':'} {materials.length}</Box>
               </div>
+
               <div className="library-results">
                 {currentMaterials.length > 0 ? (
                   currentMaterials.map(m => (
-                    <ContentCard key={m.id} item={m} type="material" onClick={() => handleCardClick(m)} />
+                    <ContentCard
+                      key={m.id}
+                      item={m}
+                      type="material"
+                      onClick={() => handleCardClick(m)}
+                    />
                   ))
                 ) : (
                   <Box sx={{ padding: 2, textAlign: 'center', color: 'gray' }}>
@@ -170,14 +191,15 @@ export default function StudyMaterial() {
                   </Box>
                 )}
               </div>
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPrev={prev}
-                onNext={next}
-              />
             </div>
           </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPrev={prev}
+            onNext={next}
+          />
         </Box>
       </Box>
     </div>

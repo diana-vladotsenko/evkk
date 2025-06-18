@@ -18,21 +18,38 @@ public class StudyMaterialService {
 
   private final MaterialDao materialDao;
   private final CategoryDao categoryDao;
+  private final TargetGroupDao targetGroupDao;
   private final LanguageLevelDao languageLevelDao;
   private final FileMaterialDao fileMaterialDao;
   private final LinkMaterialDao linkMaterialDao;
   private final TextMaterialDao textMaterialDao;
   private final VideoMaterialDao videoMaterialDao;
 
+  private static final List<String> ALLOWED_FILE_EXTENSIONS = List.of(
+    "pdf", "xls", "xlsx", "odt", "ppt", "pptx", "txt", "doc", "docx", "rtf", "png", "jpg", "jpeg"
+  );
+
   public Material saveStudyMaterialToDatabase(
     MultipartFile file, String title, String description,
     List<String> categories, String level, String type,
-    String link, String text
+    String link, String text, List<String> targetGroups
   ) throws IOException {
 
     int materialTypeId = getMaterialTypeId(type);
     Long levelId = findOrInsertLevel(level);
     Long statusId = 1L; // DRAFT
+
+    String extension = null;
+    if ("fail".equalsIgnoreCase(type)) {
+      if (file == null || file.getOriginalFilename() == null || file.getSize() == 0) {
+        throw new IllegalArgumentException("Fail on tühi või puudub sisu.");
+      }
+
+      extension = getFileExtension(file.getOriginalFilename()).toLowerCase();
+      if (!ALLOWED_FILE_EXTENSIONS.contains(extension)) {
+        throw new IllegalArgumentException("Failivorming '" + extension + "' ei ole toetatud.");
+      }
+    }
 
     Material material = Material.builder()
       .title(title)
@@ -47,16 +64,20 @@ public class StudyMaterialService {
 
     materialDao.insertMaterial(material);
 
-    // Mitme kategooria salvestamine
     List<Category> categoryList = categories.stream()
       .map(this::findOrInsertCategory)
       .map(id -> Category.builder().id(id).build())
       .collect(Collectors.toList());
-
     material.setCategories(categoryList);
     materialDao.insertMaterialCategories(material);
 
-    // Alaminfo salvestamine tüübi alusel
+    List<TargetGroup> targetGroupList = targetGroups.stream()
+      .map(this::findTargetGroup)
+      .map(id -> TargetGroup.builder().id(id).build())
+      .collect(Collectors.toList());
+    material.setTargetGroups(targetGroupList);
+    materialDao.insertMaterialTargetGroups(material);
+
     switch (type.toLowerCase()) {
       case "fail":
         String filePath = storeFile(file);
@@ -64,11 +85,17 @@ public class StudyMaterialService {
           .materialId(material.getId())
           .filePath(filePath)
           .fileSize((int) file.getSize())
-          .fileFormat(getFileExtension(file.getOriginalFilename()))
+          .fileFormat(extension)
           .build());
         break;
 
       case "link":
+        if (link == null || link.isBlank()) {
+          throw new IllegalArgumentException("Link on kohustuslik!");
+        }
+        if (!link.matches("^(https?://).+")) {
+          throw new IllegalArgumentException("Palun sisestage korrektne link!");
+        }
         linkMaterialDao.insertLinkMaterial(LinkMaterial.builder()
           .materialId(material.getId())
           .url(link)
@@ -84,7 +111,13 @@ public class StudyMaterialService {
         break;
 
       case "video":
+        if (link == null || link.isBlank()) {
+          throw new IllegalArgumentException("Video link on kohustuslik!");
+        }
         String platform = detectPlatform(link);
+        if ("UNKNOWN".equals(platform)) {
+          throw new IllegalArgumentException("Sisestatud link ei ole toetatud videoplatvormilt!");
+        }
         String embedCode = generateEmbedCode(link, platform);
         videoMaterialDao.insertVideoMaterial(VideoMaterial.builder()
           .materialId(material.getId())
@@ -94,17 +127,8 @@ public class StudyMaterialService {
           .build());
         break;
     }
-    return material;
-  }
 
-  private int getMaterialTypeId(String type) {
-    switch (type.toLowerCase()) {
-      case "fail": return 1;
-      case "link": return 2;
-      case "tekst": return 3;
-      case "video": return 4;
-      default: throw new IllegalArgumentException("Undefined material type: " + type);
-    }
+    return materialDao.findMaterialById(material.getId());
   }
 
   private String storeFile(MultipartFile file) throws IOException {
@@ -178,6 +202,14 @@ public class StudyMaterialService {
       .orElseThrow();
   }
 
+  private Long findTargetGroup(String id) {
+    List<TargetGroup> all = targetGroupDao.findAllTargetGroups();
+    for (TargetGroup targetGroup : all) {
+      if (targetGroup.getId().toString().equalsIgnoreCase(id)) return targetGroup.getId();
+    }
+    return null;
+  }
+
   private Long findOrInsertLevel(String level) {
     List<LanguageLevel> all = languageLevelDao.findAllLanguageLevels();
     for (LanguageLevel ll : all) {
@@ -198,5 +230,9 @@ public class StudyMaterialService {
 
   public List<Material> searchMaterials(String query) {
     return materialDao.searchMaterials(query);
+  }
+
+  public Material getMaterialById(Long id) {
+    return materialDao.findMaterialById(id);
   }
 }
