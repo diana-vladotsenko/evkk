@@ -15,6 +15,7 @@ public interface MaterialDao {
   void insertMaterialTargetGroups(Material material);
 
   List<Material> findAllMaterials();
+  List<Material> searchMaterials(@Param("query") String query);
 
   Material findMaterialById(@Param("id") Long id);
 

@@ -133,4 +133,21 @@
     )
   </insert>
 
+  <select id="searchExercises" resultMap="ExerciseResultMap" parameterType="string">
+    SELECT
+    <include refid="exerciseAssociationColumns"/>
+    FROM core.exercise ex
+    <include refid="exerciseAssociations"/>
+    WHERE
+    LOWER(ex.title) LIKE LOWER(CONCAT('%', #{query}, '%'))
+    OR LOWER(ex.description) LIKE LOWER(CONCAT('%', #{query}, '%'))
+    OR EXISTS (
+    SELECT 1
+    FROM core.category c
+    JOIN core.exercise_category ec ON c.id = ec.category_id
+    WHERE ec.exercise_id = ex.id
+    AND LOWER(c.name) LIKE LOWER(CONCAT('%', #{query}, '%'))
+    )
+    ORDER BY ex.id
+  </select>
 </mapper>

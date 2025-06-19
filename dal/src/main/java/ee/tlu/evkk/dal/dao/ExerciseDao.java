@@ -21,7 +21,12 @@ public interface ExerciseDao {
   );
 
   Exercise findByExternalId(@Param("externalId") String externalId);
+
   void insertExercise(Exercise exercise);
+
   void insertExerciseCategories(Exercise exercise);
+
   void insertExerciseTargetGroups(Exercise exercise);
+
+  List<Exercise> searchExercises(@Param("query") String query);
 }

@@ -1,8 +1,8 @@
 import { Box, Button } from '@mui/material';
 import './styles/Home.css';
 import './styles/Library.css';
-import { ElleOuterDivStyle } from '../const/StyleConstants';
-import LibraryNavbar from '../components/library/shared/LibraryNavbar'
+import { ElleOuterDivStyle, DefaultButtonStyleSmall  } from '../const/StyleConstants';
+import LibraryNavbar from '../components/library/shared/LibraryNavbar';
 import SortButton from '../components/library/search/SortButton';
 import CategoryFilters from '../components/library/search/CategoryFilters';
 import LanguageFilters from '../components/library/search/LanguageFilters';
@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 export default function Exercise() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [exercises, setExercises] = useState([]);
+  const [sortType, setSortType] = useState('newest');
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedLanguages, setSelectedLanguages] = useState([]);
   const [selectedTypes, setSelectedTypes] = useState([]);
@@ -46,6 +47,29 @@ export default function Exercise() {
     setCurrentPage
   } = usePagination(exercises, itemsPerPage);
 
+    const handleSearch = (query) => {
+    const trimmed = query.trim();
+
+    if (!trimmed) {
+      fetch("http://localhost:9090/api/exercises")
+        .then(res => res.json())
+        .then(json => {
+          setSortType('newest');
+          setExercises(applySort(json, 'newest'));
+          setCurrentPage(1);
+        });
+      return;
+    }
+
+    fetch(`http://localhost:9090/api/exercises/search?query=${encodeURIComponent(trimmed)}`)
+      .then(res => res.json())
+      .then(json => {
+        setSortType('newest');
+        setExercises(applySort(json, 'newest'));
+        setCurrentPage(1);
+      });
+  };
+  
   const fetchData = () => {
     const params = new URLSearchParams();
     if(selectedCategories.length) {
@@ -66,9 +90,19 @@ export default function Exercise() {
     });
   }
 
-  useEffect(() => {
-    fetchData();
-  }, [selectedCategories, selectedLanguages, selectedTypes]);
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const res = await fetch("http://localhost:9090/api/exercises");
+      const data = await res.json();
+      setExercises(applySort(data, sortType)); // sort after fetch
+    } catch (err) {
+      console.error("Failed to fetch exercises:", err);
+    }
+  };
+
+  fetchData();
+}, [selectedCategories, selectedLanguages, selectedTypes, sortType]); // include sortType here too
 
   return (
     <div>
