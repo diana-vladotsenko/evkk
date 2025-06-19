@@ -4,7 +4,6 @@
   "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="ee.tlu.evkk.dal.dao.MaterialDao">
-
   <sql id="materialAssociations">
     LEFT JOIN core.language_level ll ON m.language_level_id = ll.id
     LEFT JOIN core.status st ON m.status_id = st.id
@@ -76,6 +75,20 @@
     <collection property="targetGroups" resultMap="ee.tlu.evkk.dal.dao.TargetGroupDao.TargetGroupResultMap"/>
   </resultMap>
 
+  <insert id="insertMaterialCategories" parameterType="ee.tlu.evkk.dal.dto.Material">
+    INSERT INTO core.material_category (material_id, category_id)
+    <foreach collection="categories" item="category" separator="," open="VALUES" close="">
+      (#{id}, #{category.id})
+    </foreach>
+  </insert>
+
+  <insert id="insertMaterialTargetGroups" parameterType="ee.tlu.evkk.dal.dto.Material">
+    INSERT INTO core.material_target_group (material_id, target_group_id)
+    <foreach collection="targetGroups" item="targetGroup" separator="," open="VALUES" close="">
+      (#{id}, #{targetGroup.id})
+    </foreach>
+  </insert>
+
   <insert id="insertMaterial" parameterType="ee.tlu.evkk.dal.dto.Material" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO core.material (
       title,
@@ -96,19 +109,43 @@
     )
   </insert>
 
-  <insert id="insertMaterialCategories" parameterType="ee.tlu.evkk.dal.dto.Material">
-    INSERT INTO core.material_category (material_id, category_id)
-    <foreach collection="categories" item="category" separator="," open="VALUES" close="">
-      (#{id}, #{category.id})
-    </foreach>
-  </insert>
-
-  <insert id="insertMaterialTargetGroups" parameterType="ee.tlu.evkk.dal.dto.Material">
-    INSERT INTO core.material_target_group (material_id, target_group_id)
-    <foreach collection="targetGroups" item="targetGroup" separator="," open="VALUES" close="">
-      (#{id}, #{targetGroup.id})
-    </foreach>
-  </insert>
+  <select id="getFilteredStudyMaterials" resultMap="MaterialResultMap">
+    SELECT
+    <include refid="materialAssociationColumns"/>
+    FROM core.material m
+    <include refid="materialAssociations"/>
+    <where>
+      <if test="categories != null and categories.size() > 0">
+        AND m.id IN (
+        SELECT mc.material_id FROM core.material_category mc
+        JOIN core.category cat ON mc.category_id = cat.id
+        WHERE cat.name IN
+        <foreach collection="categories" item="catName" open="(" separator="," close=")">
+          #{catName}
+        </foreach>
+        )
+      </if>
+      <if test="languageLevel != null and languageLevel.size() > 0">
+        AND m.language_level_id IN (
+        SELECT ll.id FROM core.language_level ll
+        WHERE ll.level IN
+        <foreach collection="languageLevel" item="llName" open="(" separator="," close=")">
+          #{llName}
+        </foreach>
+        )
+      </if>
+      <if test="materialType != null and materialType.size() > 0">
+        AND m.material_type_id IN (
+        SELECT mt.id FROM core.material_type mt
+        WHERE mt.type IN
+        <foreach collection="materialType" item="mtName" open="(" separator="," close=")">
+          #{mtName}
+        </foreach>
+        )
+      </if>
+    </where>
+    ORDER BY m.id
+  </select>
 
   <select id="findAllMaterials" resultMap="MaterialResultMap">
     SELECT
@@ -118,30 +155,30 @@
     ORDER BY m.id ASC
   </select>
 
-  <select id="searchMaterials" resultMap="MaterialResultMap">
-    SELECT
-    <include refid="materialAssociationColumns"/>
-    FROM core.material m
-    <include refid="materialAssociations"/>
-    WHERE
-      LOWER(m.title) LIKE LOWER(CONCAT('%', #{query}, '%'))
-      OR LOWER(m.description) LIKE LOWER(CONCAT('%', #{query}, '%'))
-      OR EXISTS (
-        SELECT 1
-        FROM core.material_category mc
-        JOIN core.category c ON mc.category_id = c.id
-        WHERE mc.material_id = m.id
-        AND LOWER(c.name) LIKE LOWER(CONCAT('%', #{query}, '%'))
-      )
-    ORDER BY m.id ASC
-  </select>
-
   <select id="findMaterialById" parameterType="long" resultMap="MaterialResultMap">
     SELECT
     <include refid="materialAssociationColumns"/>
     FROM core.material m
     <include refid="materialAssociations"/>
     WHERE m.id = #{id}
+  </select>
+  
+  <select id="searchMaterials" resultMap="MaterialResultMap">
+    SELECT
+    <include refid="materialAssociationColumns"/>
+    FROM core.material m
+    <include refid="materialAssociations"/>
+    WHERE
+    LOWER(m.title) LIKE LOWER(CONCAT('%', #{query}, '%'))
+    OR LOWER(m.description) LIKE LOWER(CONCAT('%', #{query}, '%'))
+    OR EXISTS (
+    SELECT 1
+    FROM core.material_category mc
+    JOIN core.category c ON mc.category_id = c.id
+    WHERE mc.material_id = m.id
+    AND LOWER(c.name) LIKE LOWER(CONCAT('%', #{query}, '%'))
+    )
+    ORDER BY m.id ASC
   </select>
 
 </mapper>

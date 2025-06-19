@@ -26,29 +26,14 @@ export default function StudyMaterial() {
   const openId = searchParams.get('open');
   const [modalOpen, setModalOpen] = useState(false);
   const [materials, setMaterials] = useState([]);
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedLanguages, setSelectedLanguages] = useState([]);
+  const [selectedTypes, setSelectedTypes] = useState([]);
   const [sortType, setSortType] = useState('newest');
   const materialsPerPage = 5;
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [popupOpen, setPopupOpen] = useState(false);
   const { t } = useTranslation();
-
-  const handleCardClick = (material) => {
-    setSelectedMaterial(material);
-    setPopupOpen(true);
-
-    const newSearch = new URLSearchParams(location.search);
-    newSearch.set('open', material.id);
-    navigate(`${location.pathname}?${newSearch.toString()}`, { replace: true });
-  };
-
-  const handleClosePopup = () => {
-    setPopupOpen(false);
-    setSelectedMaterial(null);
-
-    const newSearch = new URLSearchParams(location.search);
-    newSearch.delete('open');
-    navigate(`${location.pathname}?${newSearch.toString()}`, { replace: true });
-  };
 
   const applySort = (items, type) => {
     const sorted = [...items];
@@ -70,49 +55,84 @@ export default function StudyMaterial() {
     setCurrentPage
   } = usePagination(materials, materialsPerPage);
 
-  const fetchAllMaterials = async () => {
-    const url = process.env.NODE_ENV === 'production'
-      ? '/api/study-material/all'
-      : 'http://localhost:9090/api/study-material/all';
+  const fetchData = async () => {
+    const params = new URLSearchParams();
+    if (selectedCategories.length) {
+      params.append('categories', selectedCategories.join(','));
+    }
+    if (selectedLanguages.length) {
+      params.append('languageLevel', selectedLanguages.join(','));
+    }
+    if (selectedTypes.length) {
+      params.append('materialType', selectedTypes.join(','));
+    }
 
     try {
+      const url = `http://localhost:9090/api/study-material/results?${params.toString()}`;
       const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP error ' + res.status);
       const data = await res.json();
       setMaterials(applySort(data, sortType));
     } catch (err) {
-      console.error('Error loading all materials:', err);
+      console.error('Error fetching materials:', err);
+      setMaterials([]);
     }
   };
 
   useEffect(() => {
-    fetchAllMaterials();
-  }, []);
+    fetchData();
+  }, [selectedCategories, selectedLanguages, selectedTypes, sortType]);
+
+  useEffect(() => {
+    if (openId && materials.length > 0) {
+      const match = materials.find(m => m.id === parseInt(openId));
+      if (match) {
+        setSelectedMaterial(match);
+        setPopupOpen(true);
+      }
+    }
+  }, [openId, materials]);
 
   const handleSearch = async (query) => {
     const trimmed = query.trim();
-
     if (!trimmed) {
-      setSortType('newest');
-      await fetchAllMaterials();
+      await fetchData();
       setCurrentPage(1);
       return;
     }
 
-    const url = process.env.NODE_ENV === 'production'
-      ? `/api/study-material/search?query=${encodeURIComponent(trimmed)}`
-      : `http://localhost:9090/api/study-material/search?query=${encodeURIComponent(trimmed)}`;
-
+    const url = `http://localhost:9090/api/study-material/search?query=${encodeURIComponent(trimmed)}`;
     try {
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
-      setSortType('newest');
       setMaterials(applySort(data, 'newest'));
+      setSortType('newest');
       setCurrentPage(1);
     } catch (err) {
-      console.error('Search error:', err);
+      console.error('Search failed:', err);
     }
   };
+
+  const handleCardClick = (material) => {
+    setSelectedMaterial(material);
+    setPopupOpen(true);
+    const newSearch = new URLSearchParams(location.search);
+    newSearch.set('open', material.id);
+    navigate(`${location.pathname}?${newSearch.toString()}`, { replace: true });
+  };
+
+  const handleClosePopup = () => {
+    setPopupOpen(false);
+    setSelectedMaterial(null);
+    const newSearch = new URLSearchParams(location.search);
+    newSearch.delete('open');
+    navigate(`${location.pathname}?${newSearch.toString()}`, { replace: true });
+  };
+
+  const handleCategoriesChange = (val) => setSelectedCategories(val);
+  const handleLanguagesChange = (val) => setSelectedLanguages(val);
+  const handleTypesChange = (val) => setSelectedTypes(val);
 
   return (
     <div>
@@ -121,10 +141,9 @@ export default function StudyMaterial() {
         setIsOpen={() => setModalOpen(false)}
         onSubmitSuccess={async (newMaterial) => {
           try {
-            const url = process.env.NODE_ENV === 'production'
-              ? `/api/study-material/${newMaterial.id}`
-              : `http://localhost:9090/api/study-material/${newMaterial.id}`;
+            const url = `http://localhost:9090/api/study-material/${newMaterial.id}`;
             const res = await fetch(url);
+            if (!res.ok) throw new Error();
             const fullMaterial = await res.json();
             setMaterials(prev => applySort([fullMaterial, ...prev], sortType));
           } catch {
@@ -142,20 +161,18 @@ export default function StudyMaterial() {
         <Box className="library-container">
           <h1 className="library-page-title">{t('study_materials')}</h1>
           <div className="library-main-content">
-
             <div className="library-filters">
               <div className="library-navbar-section">
                 <LibraryNavbar />
               </div>
               <div className="library-filters-section">
-                <CategoryFilters />
+                <CategoryFilters selected={selectedCategories} onChange={handleCategoriesChange} />
                 <br />
-                <LanguageFilters />
+                <LanguageFilters selected={selectedLanguages} onChange={handleLanguagesChange} />
                 <br />
-                <TypeFilters />
+                <TypeFilters selected={selectedTypes} onChange={handleTypesChange} />
               </div>
             </div>
-
             <div className="library-infoContainer">
               <SearchBar onSearch={handleSearch} />
               <div className="library-header-actions">
@@ -166,24 +183,16 @@ export default function StudyMaterial() {
                   selectedSort={sortType}
                   onSortChange={(type) => {
                     setSortType(type);
-                    setMaterials(applySort(materials, type));
                   }}
                 />
               </div>
-
               <div className="library-results-count">
                 <Box>{t('query_found') + ':'} {materials.length}</Box>
               </div>
-
               <div className="library-results">
                 {currentMaterials.length > 0 ? (
                   currentMaterials.map(m => (
-                    <ContentCard
-                      key={m.id}
-                      item={m}
-                      type="material"
-                      onClick={() => handleCardClick(m)}
-                    />
+                    <ContentCard key={m.id} item={m} type="material" onClick={() => handleCardClick(m)} />
                   ))
                 ) : (
                   <Box sx={{ padding: 2, textAlign: 'center', color: 'gray' }}>
@@ -191,15 +200,14 @@ export default function StudyMaterial() {
                   </Box>
                 )}
               </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPrev={prev}
+                onNext={next}
+              />
             </div>
           </div>
-
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPrev={prev}
-            onNext={next}
-          />
         </Box>
       </Box>
     </div>

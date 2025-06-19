@@ -1,15 +1,16 @@
 import { Box, Button } from '@mui/material';
 import './styles/Home.css';
 import './styles/Library.css';
-import { ElleOuterDivStyle, DefaultButtonStyleSmall } from '../const/StyleConstants';
+import { ElleOuterDivStyle, DefaultButtonStyleSmall  } from '../const/StyleConstants';
 import LibraryNavbar from '../components/library/shared/LibraryNavbar';
 import SortButton from '../components/library/search/SortButton';
 import CategoryFilters from '../components/library/search/CategoryFilters';
 import LanguageFilters from '../components/library/search/LanguageFilters';
 import TypeFilters from '../components/library/search/TypeFilters';
-import SearchBar from '../components/library/search/SearchBar';
-import ExerciseModal from '../components/library/exercises/ExerciseModal';
+import SearchBar from '../components/library/search/SearchBar'
+import ExerciseModal from '../components/library/exercises/ExerciseModal'
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import { DefaultButtonStyleSmall } from '../const/StyleConstants';
 import { useState, useEffect } from 'react';
 import ContentCard from '../components/library/shared/ContentCard';
 import Can from '../components/security/Can';
@@ -22,22 +23,31 @@ export default function Exercise() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [exercises, setExercises] = useState([]);
   const [sortType, setSortType] = useState('newest');
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedLanguages, setSelectedLanguages] = useState([]);
+  const [selectedTypes, setSelectedTypes] = useState([]);
   const itemsPerPage = 5;
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  const applySort = (items, type) => {
-    const sorted = [...items];
-    switch (type) {
-      case 'az': return sorted.sort((a, b) => a.title.localeCompare(b.title));
-      case 'za': return sorted.sort((a, b) => b.title.localeCompare(a.title));
-      case 'oldest': return sorted.sort((a, b) => a.id - b.id);
-      case 'newest':
-      default: return sorted.sort((a, b) => b.id - a.id);
-    }
-  };
+  const handleCategoriesChange = (selected) => {
+    setSelectedCategories(selected);
+  }
+  const handleLanguagesChange = (selected) => {
+    setSelectedLanguages(selected);
+  }
 
-  const handleSearch = (query) => {
+
+  const {
+    currentPage,
+    totalPages,
+    currentItems: currentExercises,
+    goToPrev: prev,
+    goToNext: next,
+    setCurrentPage
+  } = usePagination(exercises, itemsPerPage);
+
+    const handleSearch = (query) => {
     const trimmed = query.trim();
 
     if (!trimmed) {
@@ -59,48 +69,64 @@ export default function Exercise() {
         setCurrentPage(1);
       });
   };
+  
+  const fetchData = () => {
+    const params = new URLSearchParams();
+    if(selectedCategories.length) {
+      params.append('categories', selectedCategories.join(','));
+    }
+    if(selectedLanguages.length) {
+      params.append('languageLevel', selectedLanguages.join(','));
+    }
+    fetch(`http://localhost:9090/api/exercises/results?${params.toString()}`)
+      .then(res => {
+        if (!res.ok) throw new Error("HTTP error " + res.status);
+        return res.json();
+      })
+      .then(json => { setExercises(json); })
+      .catch(err => {
+        console.error(err);
+        setExercises([]);
+    });
+  }
 
-  const {
-    currentPage,
-    totalPages,
-    currentItems: currentExercises,
-    goToPrev: prev,
-    goToNext: next,
-    setCurrentPage
-  } = usePagination(exercises, itemsPerPage);
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const res = await fetch("http://localhost:9090/api/exercises");
+      const data = await res.json();
+      setExercises(applySort(data, sortType)); // sort after fetch
+    } catch (err) {
+      console.error("Failed to fetch exercises:", err);
+    }
+  };
 
-  useEffect(() => {
-    fetch("http://localhost:9090/api/exercises")
-      .then(res => res.json())
-      .then(json => setExercises(applySort(json, sortType)));
-  }, []);
+  fetchData();
+}, [selectedCategories, selectedLanguages, selectedTypes, sortType]); // include sortType here too
 
   return (
     <div>
-      <ExerciseModal isOpen={isModalOpen} setIsOpen={setIsModalOpen} />
+      <ExerciseModal
+        isOpen={isModalOpen}
+        setIsOpen={setIsModalOpen}
+      />
       <Box className="adding-rounded-corners" sx={ElleOuterDivStyle}>
         <Box className="library-container">
-          <h1 className="library-page-title">{t('exercises')}</h1>
-
+          <h1 style={{ textAlign: 'center' }}>{t('exercises')}</h1>
+          <div className="library-menu">
+            <LibraryNavbar />
+          </div>
           <div className="library-main-content">
             <div className="library-filters">
-              <div className="library-navbar-section">
-                <LibraryNavbar />
-              </div>
-              <div className="library-filters-section">
-                <CategoryFilters />
-                <br />
-                <LanguageFilters />
-                <br />
-                <TypeFilters />
-              </div>
+              <CategoryFilters selected={selectedCategories} onChange={handleCategoriesChange}/>
+              <br />
+              <LanguageFilters selected={selectedLanguages} onChange={handleLanguagesChange}/>
+              <br />
+              <TypeFilters />
             </div>
-
+                                               
             <div className="library-infoContainer">
-              <div className="library-search-container">
-                <SearchBar onSearch={handleSearch} />
-              </div>
-
+              <SearchBar />
               <div className="library-buttons">
                 <Can requireAuth={true}>
                   <Button
@@ -112,35 +138,20 @@ export default function Exercise() {
                     {t('exercise_page_create_new_exercise')}
                   </Button>
                 </Can>
-                <SortButton
-                  selectedSort={sortType}
-                  onSortChange={(type) => {
-                    setSortType(type);
-                    setExercises(applySort(exercises, type));
-                  }}
-                />
+                <SortButton />
               </div>
-
               <div className="library-results-count">
                 <Box>{t('query_found')}: {exercises.length}</Box>
               </div>
-
               <div className="library-results">
-                {currentExercises.length > 0 ? (
-                  currentExercises.map(item => (
-                    <div key={item.id} onClick={() => navigate(`/library/exercises/${item.id}`)} style={{ cursor: 'pointer' }}>
-                      <ContentCard item={item} type="exercise" />
-                    </div>
-                  ))
-                ) : (
-                  <Box sx={{ padding: 2, textAlign: 'center', color: 'gray' }}>
-                    {t('cant_find_data')}
-                  </Box>
-                )}
+                {currentExercises.map(item => (
+                  <div key={item.id} onClick={() => navigate(`/library/exercises/${item.id}`)} style={{ cursor: 'pointer' }}>
+                    <ContentCard item={item} type="exercise" />
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}

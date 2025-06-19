@@ -25,10 +25,6 @@ public class StudyMaterialService {
   private final TextMaterialDao textMaterialDao;
   private final VideoMaterialDao videoMaterialDao;
 
-  private static final List<String> ALLOWED_FILE_EXTENSIONS = List.of(
-    "pdf", "xls", "xlsx", "odt", "ppt", "pptx", "txt", "doc", "docx", "rtf", "png", "jpg", "jpeg"
-  );
-
   public Material saveStudyMaterialToDatabase(
     MultipartFile file, String title, String description,
     List<String> categories, String level, String type,
@@ -39,6 +35,7 @@ public class StudyMaterialService {
     Long levelId = findOrInsertLevel(level);
     Long statusId = 1L; // DRAFT
 
+    // Faili kontroll enne salvestamist
     String extension = null;
     if ("fail".equalsIgnoreCase(type)) {
       if (file == null || file.getOriginalFilename() == null || file.getSize() == 0) {
@@ -46,6 +43,7 @@ public class StudyMaterialService {
       }
 
       extension = getFileExtension(file.getOriginalFilename()).toLowerCase();
+
       if (!ALLOWED_FILE_EXTENSIONS.contains(extension)) {
         throw new IllegalArgumentException("Failivorming '" + extension + "' ei ole toetatud.");
       }
@@ -64,20 +62,25 @@ public class StudyMaterialService {
 
     materialDao.insertMaterial(material);
 
+    // Mitme kategooria salvestamine
     List<Category> categoryList = categories.stream()
       .map(this::findOrInsertCategory)
       .map(id -> Category.builder().id(id).build())
       .collect(Collectors.toList());
+
     material.setCategories(categoryList);
     materialDao.insertMaterialCategories(material);
 
+    // Mitme sihigrupi lisamine
     List<TargetGroup> targetGroupList = targetGroups.stream()
       .map(this::findTargetGroup)
       .map(id -> TargetGroup.builder().id(id).build())
       .collect(Collectors.toList());
+
     material.setTargetGroups(targetGroupList);
     materialDao.insertMaterialTargetGroups(material);
 
+    // Alaminfo salvestamine tüübi alusel
     switch (type.toLowerCase()) {
       case "fail":
         String filePath = storeFile(file);
@@ -93,9 +96,11 @@ public class StudyMaterialService {
         if (link == null || link.isBlank()) {
           throw new IllegalArgumentException("Link on kohustuslik!");
         }
+
         if (!link.matches("^(https?://).+")) {
           throw new IllegalArgumentException("Palun sisestage korrektne link!");
         }
+
         linkMaterialDao.insertLinkMaterial(LinkMaterial.builder()
           .materialId(material.getId())
           .url(link)
@@ -114,10 +119,12 @@ public class StudyMaterialService {
         if (link == null || link.isBlank()) {
           throw new IllegalArgumentException("Video link on kohustuslik!");
         }
+
         String platform = detectPlatform(link);
         if ("UNKNOWN".equals(platform)) {
           throw new IllegalArgumentException("Sisestatud link ei ole toetatud videoplatvormilt!");
         }
+
         String embedCode = generateEmbedCode(link, platform);
         videoMaterialDao.insertVideoMaterial(VideoMaterial.builder()
           .materialId(material.getId())
@@ -129,6 +136,27 @@ public class StudyMaterialService {
     }
 
     return materialDao.findMaterialById(material.getId());
+  }
+
+  private static final List<String> ALLOWED_FILE_EXTENSIONS = List.of(
+    "pdf",
+    "xls", "xlsx",
+    "odt",
+    "ppt", "pptx",
+    "txt",
+    "doc", "docx",
+    "rtf",
+    "png", "jpg", "jpeg"
+  );
+
+  private int getMaterialTypeId(String type) {
+    switch (type.toLowerCase()) {
+      case "fail": return 1;
+      case "link": return 2;
+      case "tekst": return 3;
+      case "video": return 4;
+      default: throw new IllegalArgumentException("Undefined material type: " + type);
+    }
   }
 
   private String storeFile(MultipartFile file) throws IOException {
@@ -228,11 +256,21 @@ public class StudyMaterialService {
     return materialDao.findAllMaterials();
   }
 
-  public List<Material> searchMaterials(String query) {
-    return materialDao.searchMaterials(query);
-  }
-
   public Material getMaterialById(Long id) {
     return materialDao.findMaterialById(id);
+  }
+
+  // find all language levels
+  public List<LanguageLevel> getAllLanguageLevels() {
+    return languageLevelDao.findAllLanguageLevels();
+  }
+
+  // find all categories
+  public List<Category> getAllCategories() {
+    return categoryDao.findAllCategories();
+  }
+  
+  public List<Material> searchMaterials(String query) {
+    return materialDao.searchMaterials(query);
   }
 }
