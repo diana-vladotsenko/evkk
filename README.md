@@ -6,7 +6,7 @@ ELLE - Eesti keele õppe ja analüüsikeskkond õppiajatele, õpetajatele ja tea
 [Ekraanipildid](https://github.com/diana-vladotsenko/evkk/tree/suvepraktika-screenshots/screenshots)
 
 ##  Eesmärk ja lühikirjeldus
-Eesmärk oli luua õppevara leht, mis võimaldaks õppematerjalide ja interaktiivsete harjutuste loomist ning jagamist.
+Eesmärk oli luua õppevara alamleht, mis võimaldaks õppematerjalide ja interaktiivsete harjutuste loomist ning jagamist.
 Harjutuste alamlehel saab sisselogitud kasutaja lisada harjutusi ning sisselogimata kasutajal on võimalik harjutusi lahendada ja jagada.
 Õppematerjalide alamlehel saab sisselogitud kasutaja lisada uusi õppematerjale ning sisselogimata kasutajal on võimalik õppematerjale vaadata ning jagada.
 
